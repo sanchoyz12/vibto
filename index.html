@@ -1,0 +1,617 @@
+<!DOCTYPE html>
+<html lang="ru">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport"
+        content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+    <title>Sharik - Haptic Tilt Game</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;600;800&display=swap" rel="stylesheet">
+    <style>
+        :root {
+            --bg-color: #050505;
+            --accent-color: #ffffff;
+            --glass-bg: rgba(255, 255, 255, 0.05);
+            --glass-border: rgba(255, 255, 255, 0.1);
+            --font-main: 'Outfit', sans-serif;
+        }
+
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+            -webkit-tap-highlight-color: transparent;
+            user-select: none;
+        }
+
+        body,
+        html {
+            width: 100%;
+            height: 100%;
+            overflow: hidden;
+            background-color: var(--bg-color);
+            font-family: var(--font-main);
+            color: white;
+        }
+
+        canvas {
+            display: block;
+            width: 100%;
+            height: 100%;
+            touch-action: none;
+        }
+
+        #ui-layer {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            pointer-events: none;
+            z-index: 10;
+        }
+
+        .screen {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            background: radial-gradient(circle at center, rgba(20, 20, 20, 0.8) 0%, var(--bg-color) 100%);
+            backdrop-filter: blur(10px);
+            pointer-events: all;
+            transition: opacity 0.4s ease, transform 0.4s ease;
+            padding: 20px;
+            text-align: center;
+        }
+
+        .screen.hidden {
+            opacity: 0;
+            pointer-events: none;
+            transform: scale(1.1);
+        }
+
+        .screen.visible {
+            opacity: 1;
+            pointer-events: all;
+            transform: scale(1);
+        }
+
+        /* Typography */
+        h1 {
+            font-size: clamp(3rem, 15vw, 5rem);
+            font-weight: 800;
+            letter-spacing: 10px;
+            margin-bottom: 5px;
+            position: relative;
+            text-transform: uppercase;
+        }
+
+        .subtitle {
+            font-weight: 300;
+            letter-spacing: 2px;
+            opacity: 0.6;
+            margin-bottom: 40px;
+        }
+
+        #debug-console {
+            position: absolute;
+            bottom: 20px;
+            left: 20px;
+            font-family: monospace;
+            font-size: 8px;
+            color: #00ff00;
+            background: rgba(0, 0, 0, 0.5);
+            padding: 8px;
+            pointer-events: none;
+            z-index: 100;
+            text-align: left;
+            border-radius: 5px;
+            max-width: 80%;
+            display: none;
+            /* Hidden by default */
+        }
+
+        /* Stats Box */
+        .stats-box {
+            background: var(--glass-bg);
+            border: 1px solid var(--glass-border);
+            padding: 15px 30px;
+            border-radius: 20px;
+            margin-bottom: 40px;
+            display: flex;
+            flex-direction: column;
+            gap: 5px;
+        }
+
+        .stats-box .label {
+            font-size: 0.7rem;
+            font-weight: 600;
+            opacity: 0.5;
+            letter-spacing: 2px;
+        }
+
+        .stats-box .value {
+            font-size: 2rem;
+            font-weight: 800;
+        }
+
+        /* Buttons */
+        .primary-btn {
+            background: white;
+            color: black;
+            border: none;
+            padding: 18px 45px;
+            font-family: inherit;
+            font-size: 1.1rem;
+            font-weight: 800;
+            border-radius: 50px;
+            cursor: pointer;
+            transition: all 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+            box-shadow: 0 10px 30px rgba(255, 255, 255, 0.2);
+        }
+
+        .primary-btn:active {
+            transform: scale(0.95);
+            box-shadow: 0 5px 15px rgba(255, 255, 255, 0.1);
+        }
+
+        /* HUD */
+        #hud {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: calc(20px + env(safe-area-inset-top)) 25px 20px;
+            pointer-events: none;
+            transition: opacity 0.3s ease;
+        }
+
+        #hud.hidden {
+            opacity: 0;
+        }
+
+        .score-container {
+            display: flex;
+            flex-direction: column;
+        }
+
+        .score-val {
+            font-size: 2.5rem;
+            font-weight: 800;
+        }
+
+        .multiplier-val {
+            font-size: 1rem;
+            font-weight: 600;
+            color: #00ff88;
+            margin-top: -5px;
+        }
+
+        .icon-btn {
+            background: var(--glass-bg);
+            border: 1px solid var(--glass-border);
+            width: 50px;
+            height: 50px;
+            border-radius: 15px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            cursor: pointer;
+            pointer-events: all;
+            backdrop-filter: blur(5px);
+        }
+
+        .icon-btn svg {
+            width: 24px;
+            height: 24px;
+            fill: white;
+        }
+
+        /* Glitch Effect for Title */
+        .glitch {
+            color: white;
+            position: relative;
+        }
+
+        .glitch::before,
+        .glitch::after {
+            content: attr(data-text);
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: var(--bg-color);
+        }
+
+        .glitch::before {
+            left: 2px;
+            text-shadow: -2px 0 #ff00c1;
+            clip: rect(44px, 450px, 56px, 0);
+            animation: glitch-anim 5s infinite linear alternate-reverse;
+        }
+
+        .glitch::after {
+            left: -2px;
+            text-shadow: -2px 0 #00fff9, 2px 2px #ff00c1;
+            animation: glitch-anim2 1s infinite linear alternate-reverse;
+        }
+
+        @keyframes glitch-anim {
+            0% {
+                clip: rect(31px, 9999px, 94px, 0);
+            }
+
+            100% {
+                clip: rect(67px, 9999px, 62px, 0);
+            }
+        }
+
+        @keyframes glitch-anim2 {
+            0% {
+                clip: rect(10px, 9999px, 15px, 0);
+            }
+
+            100% {
+                clip: rect(85px, 9999px, 90px, 0);
+            }
+        }
+    </style>
+</head>
+
+<body>
+    <canvas id="gameCanvas"></canvas>
+    <div id="debug-console"></div>
+
+    <div id="ui-layer">
+        <!-- Start Screen -->
+        <div id="start-screen" class="screen visible">
+            <h1 class="glitch" data-text="SHARIK">SHARIK</h1>
+            <p class="subtitle">Наклоняй, чтобы управлять</p>
+            <div class="stats-box">
+                <span class="label">РЕКОРД</span>
+                <span id="best-score" class="value">0</span>
+            </div>
+            <button id="start-btn" class="primary-btn">НАЧАТЬ ИГРУ</button>
+            <p id="debug-info" style="font-size: 10px; margin-top: 20px; opacity: 0.5;"></p>
+        </div>
+
+        <!-- HUD -->
+        <div id="hud" class="hidden">
+            <div class="score-container">
+                <span id="current-score" class="score-val">0</span>
+                <span id="multiplier" class="multiplier-val">x1</span>
+            </div>
+            <button id="pause-btn" class="icon-btn">
+                <svg viewBox="0 0 24 24">
+                    <path d="M6 19h4V5H6v14zm8-14v14h4V5h-4z" />
+                </svg>
+            </button>
+        </div>
+
+        <!-- Pause Screen -->
+        <div id="pause-screen" class="screen hidden">
+            <h2>ПАУЗА</h2>
+            <button id="resume-btn" class="primary-btn">ПРОДОЛЖИТЬ</button>
+        </div>
+
+        <!-- Game Over Screen -->
+        <div id="game-over-screen" class="screen hidden">
+            <h2>ИГРА ОКОНЧЕНА</h2>
+            <div class="final-stats">
+                <div class="stat">
+                    <span>СЧЁТ</span>
+                    <span id="final-score">0</span>
+                </div>
+            </div>
+            <button id="restart-btn" class="primary-btn">ЕЩЁ РАЗ</button>
+        </div>
+    </div>
+
+    <script>
+        class Game {
+            constructor() {
+                this.canvas = document.getElementById('gameCanvas');
+                this.ctx = this.canvas.getContext('2d');
+                this.debug = document.getElementById('debug-console');
+                this.debugInfo = document.getElementById('debug-info');
+
+                this.isRunning = false;
+                this.isPaused = false;
+                this.score = 0;
+                this.multiplier = 1;
+                this.bestScore = parseInt(localStorage.getItem('sharik_best_score')) || 0;
+
+                this.gravityScale = 0.5;
+                this.friction = 0.99;
+                this.bounceDecay = 0.85;
+
+                this.ball = {
+                    x: 0, y: 0, radius: 25,
+                    vx: 0, vy: 0, tiltX: 0, tiltY: 0,
+                    squashX: 1, squashY: 1
+                };
+
+                this.shake = 0;
+                this.particles = [];
+                this.audioCtx = null;
+
+                this.log(`Secure Context: ${window.isSecureContext}`);
+                this.log(`Vibration API: ${'vibrate' in navigator}`);
+
+                this.init();
+            }
+
+            log(msg) {
+                this.debug.innerHTML += `> ${msg}<br>`;
+                console.log(msg);
+            }
+
+            init() {
+                this.resize();
+                window.addEventListener('resize', () => this.resize());
+
+                document.getElementById('start-btn').onclick = (e) => this.requestPermissions();
+                document.getElementById('pause-btn').onclick = () => this.togglePause();
+                document.getElementById('resume-btn').onclick = () => this.togglePause();
+                document.getElementById('restart-btn').onclick = () => this.start();
+
+                document.getElementById('best-score').textContent = this.bestScore;
+
+                this.updateHUD();
+                requestAnimationFrame((t) => this.loop(t));
+
+                // Allow toggling debug with triple tap
+                let taps = 0;
+                document.body.addEventListener('click', () => {
+                    taps++;
+                    if (taps >= 3) {
+                        this.debug.style.display = this.debug.style.display === 'none' ? 'block' : 'none';
+                        taps = 0;
+                    }
+                    setTimeout(() => taps = 0, 1000);
+                });
+            }
+
+            async requestPermissions() {
+                try {
+                    if (!this.audioCtx) {
+                        this.audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+                    }
+                    if (this.audioCtx.state === 'suspended') {
+                        await this.audioCtx.resume();
+                    }
+                } catch (e) { this.log(`Audio error: ${e.message}`); }
+
+                if (typeof DeviceOrientationEvent !== 'undefined' && typeof DeviceOrientationEvent.requestPermission === 'function') {
+                    try {
+                        const response = await DeviceOrientationEvent.requestPermission();
+                        if (response === 'granted') {
+                            window.addEventListener('deviceorientation', (e) => this.handleTilt(e), true);
+                        }
+                    } catch (e) { this.log(`Permission error: ${e.message}`); }
+                } else {
+                    window.addEventListener('deviceorientation', (e) => this.handleTilt(e), true);
+                }
+
+                this.start();
+            }
+
+            resize() {
+                const dpr = window.devicePixelRatio || 1;
+                this.canvas.width = window.innerWidth * dpr;
+                this.canvas.height = window.innerHeight * dpr;
+                this.ctx.scale(dpr, dpr);
+
+                if (!this.isRunning) {
+                    this.ball.x = window.innerWidth / 2;
+                    this.ball.y = window.innerHeight / 2;
+                }
+            }
+
+            handleTilt(e) {
+                let tx = e.gamma || 0;
+                let ty = e.beta || 0;
+                if (tx !== 0 || ty !== 0) {
+                    this.ball.tiltX = tx / 15;
+                    this.ball.tiltY = (ty - 45) / 15;
+                    this.debugInfo.innerText = `X: ${tx.toFixed(1)} Y: ${ty.toFixed(1)}`;
+                }
+            }
+
+            start() {
+                this.isRunning = true;
+                this.isPaused = false;
+                this.score = 0;
+                this.multiplier = 1;
+                this.ball.x = window.innerWidth / 2;
+                this.ball.y = window.innerHeight / 2;
+                this.ball.vx = (Math.random() - 0.5) * 10;
+                this.ball.vy = (Math.random() - 0.5) * 10;
+                this.hideAllScreens();
+                document.getElementById('hud').classList.remove('hidden');
+            }
+
+            togglePause() {
+                this.isPaused = !this.isPaused;
+                const screen = document.getElementById('pause-screen');
+                if (this.isPaused) {
+                    screen.classList.add('visible'); screen.classList.remove('hidden');
+                } else {
+                    screen.classList.add('hidden'); screen.classList.remove('visible');
+                }
+            }
+
+            hideAllScreens() {
+                document.querySelectorAll('.screen').forEach(s => {
+                    s.classList.add('hidden'); s.classList.remove('visible');
+                });
+            }
+
+            updatePhysics() {
+                if (this.isPaused || !this.isRunning) return;
+                this.ball.vx += this.ball.tiltX * this.gravityScale;
+                this.ball.vy += this.ball.tiltY * this.gravityScale;
+                this.ball.vx *= this.friction;
+                this.ball.vy *= this.friction;
+                this.ball.x += this.ball.vx;
+                this.ball.y += this.ball.vy;
+                this.checkCollisions();
+                this.score += 0.01 * this.multiplier;
+                if (Math.floor(this.score) > Math.floor(this.score - 0.01 * this.multiplier)) {
+                    this.updateHUD();
+                }
+            }
+
+            checkCollisions() {
+                const r = this.ball.radius;
+                const w = window.innerWidth;
+                const h = window.innerHeight;
+                let bounced = false;
+
+                if (this.ball.x - r < 0) {
+                    this.ball.x = r; this.triggerBounce('left', Math.abs(this.ball.vx));
+                    this.ball.vx *= -this.bounceDecay; bounced = true;
+                }
+                if (this.ball.x + r > w) {
+                    this.ball.x = w - r; this.triggerBounce('right', Math.abs(this.ball.vx));
+                    this.ball.vx *= -this.bounceDecay; bounced = true;
+                }
+                if (this.ball.y - r < 0) {
+                    this.ball.y = r; this.triggerBounce('top', Math.abs(this.ball.vy));
+                    this.ball.vy *= -this.bounceDecay; bounced = true;
+                }
+                if (this.ball.y + r > h) {
+                    this.ball.y = h - r; this.triggerBounce('bottom', Math.abs(this.ball.vy));
+                    this.ball.vy *= -this.bounceDecay; bounced = true;
+                }
+                if (bounced) {
+                    this.score += 10 * this.multiplier;
+                    this.multiplier = Math.min(this.multiplier + 0.1, 5);
+                    this.updateHUD();
+                } else {
+                    this.multiplier = Math.max(1, this.multiplier - 0.001);
+                }
+            }
+
+            triggerBounce(side, speed) {
+                if (speed < 1) return;
+                const intensity = Math.min(speed / 20, 1);
+                this.shake = intensity * 15;
+
+                // Native Android Bridge Support
+                if (window.AndroidBridge && typeof window.AndroidBridge.playHaptic === 'function') {
+                    try {
+                        window.AndroidBridge.playHaptic(side, intensity);
+                        this.log(`Native Haptic: ${side}`);
+                    } catch (e) { this.log(`Bridge Error: ${e.message}`); }
+                }
+                // Fallback to Browser Haptics
+                else if (navigator.vibrate) {
+                    let pattern = [];
+                    switch (side) {
+                        case 'left': pattern = [40]; break;
+                        case 'right': pattern = [25, 40, 25]; break;
+                        case 'top': pattern = [15, 10, 15, 10, 15, 10]; break;
+                        case 'bottom': pattern = [150]; break;
+                    }
+                    navigator.vibrate(pattern);
+                }
+
+                // Audio Feedback
+                if (this.audioCtx) {
+                    const osc = this.audioCtx.createOscillator();
+                    const gain = this.audioCtx.createGain();
+                    let freq = 200 + intensity * 400;
+                    if (side === 'top') freq += 200;
+                    if (side === 'bottom') freq -= 100;
+                    osc.frequency.setValueAtTime(freq, this.audioCtx.currentTime);
+                    gain.gain.setValueAtTime(0.1 * intensity, this.audioCtx.currentTime);
+                    osc.connect(gain); gain.connect(this.audioCtx.destination);
+                    osc.start(); osc.stop(this.audioCtx.currentTime + 0.1);
+                }
+
+                if (side === 'left' || side === 'right') {
+                    this.ball.squashX = 0.6; this.ball.squashY = 1.4;
+                } else {
+                    this.ball.squashX = 1.4; this.ball.squashY = 0.6;
+                }
+                this.createParticles(this.ball.x, this.ball.y, side, intensity);
+            }
+
+            createParticles(x, y, side, intensity) {
+                for (let i = 0; i < 15; i++) {
+                    this.particles.push({
+                        x, y,
+                        vx: (Math.random() - 0.5) * 10 * intensity,
+                        vy: (Math.random() - 0.5) * 10 * intensity,
+                        life: 1.0, decay: 0.03, size: 3
+                    });
+                }
+            }
+
+            updateHUD() {
+                document.getElementById('current-score').textContent = Math.floor(this.score);
+                document.getElementById('multiplier').textContent = `x${this.multiplier.toFixed(1)}`;
+                if (this.score > this.bestScore) {
+                    this.bestScore = Math.floor(this.score);
+                    localStorage.setItem('sharik_best_score', this.bestScore);
+                    document.getElementById('best-score').textContent = this.bestScore;
+                }
+            }
+
+            loop(t) {
+                this.updatePhysics();
+                this.draw();
+                requestAnimationFrame((t) => this.loop(t));
+            }
+
+            draw() {
+                const ctx = this.ctx;
+                const w = window.innerWidth;
+                const h = window.innerHeight;
+                ctx.clearRect(0, 0, w, h);
+                ctx.save();
+                if (this.shake > 0.1) {
+                    ctx.translate((Math.random() - 0.5) * this.shake, (Math.random() - 0.5) * this.shake);
+                    this.shake *= 0.9;
+                }
+                this.particles.forEach((p, i) => {
+                    p.x += p.vx; p.y += p.vy; p.life -= p.decay;
+                    if (p.life <= 0) { this.particles.splice(i, 1); return; }
+                    ctx.fillStyle = `rgba(255, 255, 255, ${p.life})`;
+                    ctx.beginPath(); ctx.arc(p.x, p.y, p.size, 0, Math.PI * 2); ctx.fill();
+                });
+                if (this.isRunning) {
+                    this.ball.squashX += (1 - this.ball.squashX) * 0.15;
+                    this.ball.squashY += (1 - this.ball.squashY) * 0.15;
+                    ctx.save();
+                    ctx.translate(this.ball.x, this.ball.y);
+                    ctx.scale(this.ball.squashX, this.ball.squashY);
+                    const grad = ctx.createRadialGradient(-5, -5, 0, 0, 0, this.ball.radius);
+                    grad.addColorStop(0, '#ffffff'); grad.addColorStop(1, '#cccccc');
+                    ctx.fillStyle = grad;
+                    ctx.shadowBlur = 20; ctx.shadowColor = 'rgba(255, 255, 255, 0.4)';
+                    ctx.beginPath(); ctx.arc(0, 0, this.ball.radius, 0, Math.PI * 2); ctx.fill();
+                    ctx.restore();
+                }
+                ctx.restore();
+            }
+        }
+        window.onload = () => { new Game(); };
+    </script>
+</body>
+
+</html>
